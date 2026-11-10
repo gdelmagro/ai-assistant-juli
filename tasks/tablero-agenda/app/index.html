@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Agenda · Juli</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#23334c;background:#f4f7fb}*{box-sizing:border-box}body{margin:0}header{background:#fff;border-bottom:1px solid #e2e9f1} .wrap{max-width:1300px;margin:auto;padding:24px 28px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px}.brand{font-weight:800;color:#235265;letter-spacing:-.03em;font-size:20px}.badge{background:#e1f4ed;color:#286d5e;border-radius:99px;font-size:12px;padding:7px 11px;font-weight:700}h1{font-size:32px;letter-spacing:-.04em;margin:16px 0 4px}p{line-height:1.5;color:#64748b;margin:0}.intro{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:26px}.card{background:#fff;border:1px solid #e2e9f1;border-radius:16px;box-shadow:0 5px 20px #274b6910;padding:20px;margin-bottom:18px}.controls{display:flex;gap:14px;align-items:end;flex-wrap:wrap}label{font-size:12px;font-weight:700;color:#506279;display:grid;gap:6px}input,select,button{font:inherit;border-radius:9px;padding:10px 12px;border:1px solid #cfdae5;background:white;color:#23334c}input{min-width:290px}button{cursor:pointer;font-weight:700}button.primary{background:#286b69;color:white;border-color:#286b69}button:disabled{opacity:.45;cursor:not-allowed}.status{margin-top:13px;font-size:13px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}.metric{background:#fff;border:1px solid #e2e9f1;border-radius:15px;padding:18px}.metric span{color:#718198;font-size:13px}.metric strong{display:block;font-size:27px;margin-top:6px}.section{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.section h2{margin:0;font-size:18px} .table{overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}th{text-align:left;color:#75849a;font-size:11px;text-transform:uppercase;letter-spacing:.04em}th,td{padding:12px 9px;border-bottom:1px solid #edf1f5}td:first-child{font-weight:700}.tag{background:#e7f3f1;color:#286b69;border-radius:7px;padding:4px 7px}details{margin-top:15px;font-size:13px;color:#64748b}summary{cursor:pointer;font-weight:700} .empty{padding:30px;text-align:center;color:#7a899c}.hint{font-size:12px;color:#8a99aa;margin-top:10px} .error{color:#a23d42} @media(max-width:650px){.wrap{padding:18px}.intro,.top{align-items:start;flex-direction:column}.summary{grid-template-columns:1fr 1fr}.controls>*{width:100%}input,select,button{width:100%;min-width:0}}
+</style><script src="https://accounts.google.com/gsi/client" async defer></script></head>
+<body><header><div class="wrap top"><div class="brand">◒ &nbsp; Agenda de Juli</div><span class="badge">● Lectura de Google Sheets</span></div></header><main class="wrap"><div class="intro"><div><p>GESTIÓN DE ESTUDIOS</p><h1>Tu agenda, más clara.</h1><p>Una vista para organizar visitas y actividades de tus estudios.</p></div><button id="refresh" disabled>↻ Actualizar</button></div>
+<p id="status" class="status" role="status">Preparando la agenda…</p>
+<section class="card"><div class="controls"><label>Semana<select id="week" disabled><option value="">Cargando semanas…</option></select></label><label>Estudio<select id="study"><option value="">Todos los estudios</option><option>GZBZ</option><option>Redefine</option><option>Elimunate 2</option></select></label><button id="download" disabled>↓ Descargar Excel</button></div><p class="hint">La descarga contiene las filas filtradas y sus códigos, sin nombres de pacientes. Seleccioná una semana si hay pestañas duplicadas.</p></section>
+<div class="summary"><div class="metric"><span>Visitas visibles</span><strong id="count">—</strong></div><div class="metric"><span>Estudios en la vista</span><strong id="studies">—</strong></div><div class="metric"><span>Última actualización</span><strong id="updated">—</strong></div></div>
+<section class="card"><div class="section"><div><h2>Visitas y actividades</h2><p class="hint">Datos mostrados según los filtros seleccionados.</p></div></div><div class="table"><table><thead><tr><th>Día</th><th>Hora</th><th>Médica</th><th>Estudio</th><th>Coordinadora</th><th>Código</th><th>Visita</th><th>Actividades registradas</th></tr></thead><tbody id="rows"><tr><td colspan="8" class="empty">La agenda aparecerá aquí cuando esté disponible.</td></tr></tbody></table></div></section></main>
+<script>
+const ID='1qkr2jilrLbgmiCEU12H8BCz2Rnq4sRN9JTVTDWDywbw';
+const CLIENT_ID='884156798510-tgq7efe2eegqkhpa88djmjvds4et3pld.apps.googleusercontent.com';
+const SCOPES='https://www.googleapis.com/auth/spreadsheets.readonly';
+const $=id=>document.getElementById(id); let token='', entries=[], filtered=[], tabs=[];
+const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function studyName(value){let n=norm(value);if(n.includes('gzbz'))return 'GZBZ';if(n.includes('redefine'))return 'Redefine';if(n.includes('elimunate2'))return 'Elimunate 2';return ''}
+function message(s,error=false){$('status').textContent=s;$('status').classList.toggle('error',error)}
+function node(tag,text){let el=document.createElement(tag);el.textContent=text;return el}
+async function api(path){let r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+ID+path,{headers:{Authorization:'Bearer '+token},cache:'no-store'});if(!r.ok){if(r.status===401){token='';sessionStorage.removeItem('agenda-token');$('refresh').disabled=false;}throw Error(r.status===401?'La sesión venció. Pulsá Actualizar para continuar.':`Google Sheets respondió ${r.status}. Comprobá el acceso y la configuración.`)}return r.json()}
+function weekStart(title){
+  const match=title.match(/(\d{1,2})\/(\d{1,2})\s+al\s+\d{1,2}\/\d{1,2}/i);
+  if(!match)return null;
+  const day=Number(match[1]);
+  const month=Number(match[2]);
+  const date=new Date(2000,month-1,day);
+  if(date.getMonth()!==month-1||date.getDate()!==day)return null;
+  return month*100+day;
+}
+async function loadTabs(){
+  const data=await api('?fields=properties(title),sheets(properties(title))');
+  tabs=data.sheets.map(sheet=>sheet.properties.title)
+    .filter(title=>weekStart(title)!==null)
+    .sort((a,b)=>weekStart(b)-weekStart(a));
+  const select=$('week');
+  select.replaceChildren(new Option('Elegí una semana',''));
+  for(const title of tabs)select.add(new Option(title,title));
+  select.disabled=!tabs.length;
+  $('refresh').disabled=false;
+  if(!tabs.length){message('No se encontraron semanas en la agenda.',true);return}
+  const localDate=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const part=type=>Number(localDate.find(item=>item.type===type).value);
+  const today=Date.UTC(part('year'),part('month')-1,part('day'));
+  const titleYear=data.properties.title.match(/\b(20\d{2})\b/);
+  const year=titleYear?Number(titleYear[1]):part('year');
+  const current=tabs.filter(title=>{
+    const start=weekStart(title);
+    const startDate=Date.UTC(year,Math.floor(start/100)-1,start%100);
+    return today>=startDate&&today<startDate+7*24*60*60*1000;
+  });
+  if(current.length>1){
+    const standard=current.filter(title=>/^\d{1,2}\/\d{1,2}\s+al\s+\d{1,2}\/\d{1,2}\s*$/i.test(title));
+    if(standard.length===1){
+      select.value=standard[0];
+      await loadWeek();
+      return;
+    }
+    message('Hay más de una pestaña para la semana actual. Elegí la que corresponde.');
+    return;
+  }
+  if(!current.length){
+    message('No se encontró una pestaña para la semana actual. Elegí una semana.');
+    return;
+  }
+  select.value=current[0];
+  await loadWeek();
+}
+function quoted(name){return "'"+name.replaceAll("'","''")+"'"}
+async function loadWeek(){let week=$('week').value;if(!week){entries=[];render();message('Elegí una semana.');return}sessionStorage.setItem('agenda-week',week);message('Consultando la semana en Google Sheets…');$('download').disabled=true;try{let ranges=[`${quoted(week)}!A1:C1000`,`${quoted(week)}!E1:M1000`];let q=ranges.map(r=>'ranges='+encodeURIComponent(r)).join('&');let d=await api('/values:batchGet?'+q);let left=d.valueRanges[0].values||[],right=d.valueRanges[1].values||[];entries=[];let day='';for(let i=0;i<Math.max(left.length,right.length);i++){let a=left[i]||[],b=right[i]||[];let marker=String(a[1]||'').trim();if(/\b(lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo)\b/i.test(marker))day=marker;let study=studyName(a[2]);if(!study)continue;entries.push({week,day,time:a[1]||'',doctor:a[0]||'',study,coordinator:b[0]||'',code:b[1]||'',visit:b[2]||'',activities:Array.from({length:6},(_,j)=>b[j+3]||'')});}render();$('updated').textContent=new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});message('Actualizada desde Google Sheets. Revisá que la semana elegida sea la correcta.')}catch(e){entries=[];render();message(e.message,true)}}
+function render(){filtered=entries.filter(x=>!$('study').value||x.study===$('study').value);$('count').textContent=filtered.length;$('studies').textContent=new Set(filtered.map(x=>x.study)).size;$('download').disabled=!filtered.length;let body=$('rows');body.replaceChildren();if(!filtered.length){let tr=node('tr',''),td=node('td','No hay filas coincidentes en esta vista.');td.colSpan=8;td.className='empty';tr.append(td);body.append(tr);return}for(let x of filtered){let tr=document.createElement('tr');let acts=['LAB','PK','ECG','NUTRI','AUTO','FCI'].map((n,i)=>x.activities[i]?`${n}: ${x.activities[i]}`:'').filter(Boolean).join(' · ');for(let v of [x.day,x.time,x.doctor,x.study,x.coordinator,x.code,x.visit,acts])tr.append(node('td',v));body.append(tr)}}
+async function startSession(accessToken, expiresAt){
+  token=accessToken;
+  sessionStorage.setItem('agenda-token',JSON.stringify({accessToken,expiresAt}));
+  try{await loadTabs()}catch(e){message(e.message,true);$('refresh').disabled=false;}
+}
+function authorize(){
+  if(!window.google?.accounts?.oauth2){message('No se pudo cargar la agenda. Revisá tu conexión y pulsá Actualizar.',true);$('refresh').disabled=false;return}
+  google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async r=>{
+    if(r.error||!r.access_token){message('No se pudo cargar la agenda. Pulsá Actualizar para continuar.',true);$('refresh').disabled=false;return}
+    await startSession(r.access_token,Date.now()+Number(r.expires_in||0)*1000);
+  },error_callback:()=>{message('No se pudo cargar la agenda. Pulsá Actualizar para continuar.',true);$('refresh').disabled=false}}).requestAccessToken({prompt:''});
+}
+let session;
+try{session=JSON.parse(sessionStorage.getItem('agenda-token')||'null')}catch(e){session=null}
+if(session?.accessToken&&session.expiresAt>Date.now()+30000){startSession(session.accessToken,session.expiresAt)}
+else{sessionStorage.removeItem('agenda-token');window.addEventListener('load',authorize,{once:true})}
+$('week').onchange=loadWeek;$('study').onchange=render;$('refresh').onclick=()=>{if(!token)authorize();else if(!tabs.length)startSession(token,JSON.parse(sessionStorage.getItem('agenda-token')).expiresAt);else loadWeek()};
+$('download').onclick=async()=>{let rows=filtered.map(x=>[x.week,x.day,x.time,x.doctor,x.study,x.coordinator,x.code,x.visit,...x.activities]);try{let response=await fetch('/export',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rows})});if(!response.ok)throw Error('No se pudo generar el Excel.');let url=URL.createObjectURL(await response.blob());let a=document.createElement('a');a.href=url;a.download='agenda-filtrada.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(e){message(e.message,true)}};
+</script></body></html>

@@ -1,0 +1,5 @@
+{
+  "idioma": "es-AR",
+  "nivel_de_detalle": "breve, con pasos concretos",
+  "formato_de_seguimiento": ["pendiente", "responsable", "fecha", "estado", "próximo paso"]
+}
