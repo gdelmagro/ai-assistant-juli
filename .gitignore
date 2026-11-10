@@ -1,0 +1,36 @@
+# Secrets and local configuration
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.*
+secrets.*
+/config/config.local.json
+
+# Local, sensitive, or temporary material
+/private/
+/sensitive/
+/data/
+/tmp/
+/temp/
+/work/
+/outputs/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.bak
+*.log
+
+# Keep configuration, input and output files local
+/config/*
+!/config/config.example.json
+/workspace/*
+!/workspace/entrada/
+!/workspace/salida/
+/workspace/entrada/*
+/workspace/salida/*
+!/workspace/entrada/.gitkeep
+!/workspace/salida/.gitkeep
